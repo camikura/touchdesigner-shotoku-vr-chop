@@ -37,7 +37,6 @@ public:
 
 	std::vector<double> transform{ 0.0f, 0.0f, 0.0f };
 	std::vector<double> rotate{ 0.0f, 0.0f, 0.0f };
-	std::vector<double> zoom{ 0.0f, 0.0f };
 
 	std::thread recv_thread;
 	bool running;
@@ -209,26 +208,6 @@ public:
 	void setupParameters(OP_ParameterManager* manager, void *reserved1)
 	{
 		{
-			auto list = getSerialList();
-			const char** labels = new const char* [list.size()];
-			const char** names = new const char* [list.size()];
-			for (int i = 0; i < list.size(); i++) {
-				auto port = list[i];
-				std::transform(port.cbegin(), port.cend(), port.begin(), tocapital());
-				const char* label = list[i].c_str();
-				const char* name = port.c_str();
-				labels[i] = label;
-				names[i] = name;
-			}
-			OP_StringParameter	sp;
-			sp.name = "Portname";
-			sp.label = "Port Name";
-			sp.page = "Config";
-			OP_ParAppendResult res = manager->appendStringMenu(sp, list.size(), names, labels);
-			assert(res == OP_ParAppendResult::Success);
-		}
-		/*
-		{
 			OP_StringParameter	sp;
 			sp.name = "Portname";
 			sp.label = "Port Name";
@@ -236,7 +215,6 @@ public:
 			OP_ParAppendResult res = manager->appendString(sp);
 			assert(res == OP_ParAppendResult::Success);
 		}
-		*/
 		{
 			OP_NumericParameter np;
 			np.name = "T";
@@ -253,70 +231,7 @@ public:
 			OP_ParAppendResult res = manager->appendXYZ(np);
 			assert(res == OP_ParAppendResult::Success);
 		}
-		{
-			OP_NumericParameter np;
-			np.name = "Zoommin";
-			np.label = "Snapshot Zoom Min";
-			np.page = "Config";
-			OP_ParAppendResult res = manager->appendPulse(np);
-			assert(res == OP_ParAppendResult::Success);
-		}
-		{
-			OP_NumericParameter np;
-			np.name = "Zoommax";
-			np.label = "Snapshot Zoom Max";
-			np.page = "Config";
-			OP_ParAppendResult res = manager->appendPulse(np);
-			assert(res == OP_ParAppendResult::Success);
-		}
 	}
-
-	void pulsePressed(const char* name, void* reserved1)
-	{
-		if (!strcmp(name, "Zoommin"))
-		{
-			std::cout << "zoom min" << std::endl;
-			zoom[0] = this->chanValues[6];
-		}
-		if (!strcmp(name, "Zoommax"))
-		{
-			std::cout << "zoom max" << std::endl;
-			zoom[1] = this->chanValues[6];
-		}
-	}
-
-	struct tocapital
-	{
-		bool m_beginning;
-		tocapital()
-		{
-			m_beginning = true;
-		}
-
-		int operator()(int word)
-		{
-			int result;
-			if (std::isspace(word) != 0)
-			{
-				m_beginning = true;
-				result = word;
-			}
-			else
-			{
-				if (m_beginning)
-				{
-					m_beginning = false;
-					result = toupper(word);
-				}
-				else
-				{
-					result = tolower(word);
-				}
-			}
-			return result;
-		}
-	};
-
 };
 
 extern "C"
