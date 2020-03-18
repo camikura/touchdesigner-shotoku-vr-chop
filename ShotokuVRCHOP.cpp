@@ -33,10 +33,15 @@ public:
 	std::string portname = "";
 
 	std::vector<std::string> chanNames{ "tx", "ty", "tz", "rx", "ry", "rz", "zoom", "focus" };
-	std::vector<double> chanValues{ 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+	std::vector<double> chanValues{ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
 
-	std::vector<double> transform{ 0.0f, 0.0f, 0.0f };
-	std::vector<double> rotate{ 0.0f, 0.0f, 0.0f };
+	std::vector<double> transform{ 0.0, 0.0, 0.0 };
+	std::vector<double> rotate{ 0.0, 0.0, 0.0 };
+
+	double zoom_max = 0.0;
+	double zoom_min = 0.0;
+	double focus_max = 0.0;
+	double focus_min = 0.0;
 
 	std::thread recv_thread;
 	bool running;
@@ -116,23 +121,43 @@ public:
 
 	void regist(unsigned char data[29])
 	{
-		auto x = this->hexToInt(data[11], data[12], data[13]);
-		auto y = this->hexToInt(data[14], data[15], data[16]);
-		auto z = this->hexToInt(data[17], data[18], data[19]);
-		auto rx = this->hexToInt(data[5], data[6], data[7]);
-		auto ry = this->hexToInt(data[2], data[3], data[4]);
-		auto rz = this->hexToInt(data[8], data[9], data[10]);
-		auto zoom = this->hexToInt(data[20], data[21], data[22]);
-		auto focus = this->hexToInt(data[23], data[24], data[25]);
+		auto x = this->hexToInt(data[11], data[12], data[13]) / 64.0 + this->transform[0];
+		auto y = this->hexToInt(data[14], data[15], data[16]) / 64.0 + this->transform[1];
+		auto z = this->hexToInt(data[17], data[18], data[19]) / 64.0 + this->transform[2];
+		auto rx = this->hexToInt(data[5], data[6], data[7]) / 32768.0 + this->rotate[0];
+		auto ry = this->hexToInt(data[2], data[3], data[4]) / 32768.0 + this->rotate[1];
+		auto rz = this->hexToInt(data[8], data[9], data[10]) / 32768.0 + this->rotate[2];
+		auto lz = (double)this->hexToInt(data[20], data[21], data[22]) - (double)0x80000;
+		auto lf = (double)this->hexToInt(data[23], data[24], data[25]) - (double)0x80000;
 
-		this->chanValues[0] = (double)x / 64.0f + this->transform[0];
-		this->chanValues[1] = (double)y / 64.0f + this->transform[1];
-		this->chanValues[2] = (double)z / 64.0f + this->transform[2];
-		this->chanValues[3] = (double)rx / 32768.0f + this->rotate[0];
-		this->chanValues[4] = (double)ry / 32768.0f + this->rotate[1];
-		this->chanValues[5] = (double)rz / 32768.0f + this->rotate[2];
-		this->chanValues[6] = (double)zoom - 0x80000;
-		this->chanValues[7] = (double)focus - 0x80000;
+		// zoom
+		if (this->zoom_max == 0.0 || this->zoom_max < lz)
+			this->zoom_max = lz;
+		if (this->zoom_min == 0.0 || this->zoom_min > lz)
+			this->zoom_min = lz;
+
+		double zoom = 0.0;
+		if (this->zoom_max > 0.0 && this->zoom_min > 0.0 && this->zoom_max > this->zoom_min)
+			zoom = (this->zoom_max - lz) / (this->zoom_max - this->zoom_min);
+
+		// focus
+		if (this->focus_max == 0.0 || this->focus_max < lf)
+			this->focus_max = lf;
+		if (this->focus_min == 0.0 || this->focus_min > lf)
+			this->focus_min = lf;
+
+		double focus = 0.0;
+		if (this->focus_max > 0.0 && this->focus_min > 0.0 && this->focus_max > this->focus_min)
+			focus = (this->focus_max - lf) / (this->focus_max - this->focus_min);
+
+		this->chanValues[0] = x;
+		this->chanValues[1] = y;
+		this->chanValues[2] = z;
+		this->chanValues[3] = rx;
+		this->chanValues[4] = ry;
+		this->chanValues[5] = rz;
+		this->chanValues[6] = zoom;
+		this->chanValues[7] = focus;
 	}
 
 	int hexToInt(unsigned char d1, unsigned char d2, unsigned char d3)
@@ -208,10 +233,9 @@ public:
 	void setupParameters(OP_ParameterManager* manager, void *reserved1)
 	{
 		{
-			OP_StringParameter	sp;
+			OP_StringParameter sp;
 			sp.name = "Portname";
 			sp.label = "Port Name";
-			sp.page = "Config";
 			OP_ParAppendResult res = manager->appendString(sp);
 			assert(res == OP_ParAppendResult::Success);
 		}
@@ -219,7 +243,6 @@ public:
 			OP_NumericParameter np;
 			np.name = "T";
 			np.label = "Transform";
-			np.page = "Config";
 			OP_ParAppendResult res = manager->appendXYZ(np);
 			assert(res == OP_ParAppendResult::Success);
 		}
@@ -227,9 +250,34 @@ public:
 			OP_NumericParameter np;
 			np.name = "R";
 			np.label = "Rotate";
-			np.page = "Config";
 			OP_ParAppendResult res = manager->appendXYZ(np);
 			assert(res == OP_ParAppendResult::Success);
+		}
+		{
+			OP_NumericParameter np;
+			np.name = "Zoomreset";
+			np.label = "Zoom Reset";
+			OP_ParAppendResult res = manager->appendPulse(np);
+			assert(res == OP_ParAppendResult::Success);
+		}
+		{
+			OP_NumericParameter np;
+			np.name = "Focusreset";
+			np.label = "Focus Reset";
+			OP_ParAppendResult res = manager->appendPulse(np);
+			assert(res == OP_ParAppendResult::Success);
+		}
+	}
+
+	void pulsePressed(const char* name, void* reserved1)
+	{
+		if (!strcmp(name, "Zoomreset")) {
+			this->zoom_max = 0;
+			this->zoom_min = 0;
+		}
+		if (!strcmp(name, "Focusreset")) {
+			this->focus_max = 0;
+			this->focus_min = 0;
 		}
 	}
 };
