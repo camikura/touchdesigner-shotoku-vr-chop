@@ -109,28 +109,33 @@ public:
 
 		unsigned char data[29] = { 0 };
 		int pos = 0;
+
 		while (this->running)
 		{
 			auto v = this->serial.Read();
 			for (auto c : v) {
 				c &= 0xff;
+
 				if (c == 0xd1 && pos == 29) {
 					unsigned char data[29] = { 0 };
 					pos = 0;
 				}
-				if (pos < 29) {
-					data[pos] = c;
-				}
-				data[pos++] = c;
 
-				if (pos == 28)
+				if (pos < 29) {
+					data[pos++] = c;
+				}
+
+				if (data[0] == 0xd1 && pos == 28) {
 					this->read(data);
+				}
+
 			}
 
 			if (pos > 28) {
 				unsigned char data[29] = { 0 };
 				pos = 0;
 			}
+
 		}
 	}
 
