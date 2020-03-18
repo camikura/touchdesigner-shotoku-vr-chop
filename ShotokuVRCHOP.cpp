@@ -22,6 +22,7 @@
 #include <thread>
 #include <chrono>
 #include <algorithm>
+#include <numeric>
 
 #include "Serial.hpp"
 
@@ -32,8 +33,8 @@ class ShotokuVRCHOP : public CHOP_CPlusPlusBase
 public:
 	std::string portname = "";
 
-	std::vector<std::string> chanNames{ "tx", "ty", "tz", "rx", "ry", "rz", "zoom", "focus" };
-	std::vector<double> chanValues{ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
+	std::vector<std::string> chanNames{ "tx", "ty", "tz", "rx", "ry", "rz", "zoom", "focus", "fps", "fpsavg" };
+	std::vector<double> chanValues{ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
 
 	std::vector<double> transform{ 0.0, 0.0, 0.0 };
 	std::vector<double> rotate{ 0.0, 0.0, 0.0 };
@@ -42,6 +43,12 @@ public:
 	double zoom_min = 0.0;
 	double focus_max = 0.0;
 	double focus_min = 0.0;
+
+	int last_sec = 0;
+	int fps_counter = 0;
+	time_t now;
+
+	std::vector<double> fpsHistory{};
 
 	std::thread recv_thread;
 	bool running;
@@ -107,26 +114,55 @@ public:
 			auto v = this->serial.Read();
 			for (auto c : v) {
 				c &= 0xff;
-				if (c == 0xd1) {
+				if (c == 0xd1 && pos == 29) {
 					unsigned char data[29] = { 0 };
 					pos = 0;
+				}
+				if (pos < 29) {
+					data[pos] = c;
 				}
 				data[pos++] = c;
 
 				if (pos == 28)
-					this->regist(data);
+					this->read(data);
+			}
+
+			if (pos > 28) {
+				unsigned char data[29] = { 0 };
+				pos = 0;
 			}
 		}
 	}
 
-	void regist(unsigned char data[29])
+	void read(unsigned char data[29])
 	{
-		auto x = this->hexToInt(data[11], data[12], data[13]) / 64.0 + this->transform[0];
-		auto y = this->hexToInt(data[14], data[15], data[16]) / 64.0 + this->transform[1];
-		auto z = this->hexToInt(data[17], data[18], data[19]) / 64.0 + this->transform[2];
+		this->measureFps();
+		this->readTransformation(data);
+		this->readRotation(data);
+		this->readLenzData(data);
+	}
+
+	void readRotation(unsigned char data[29]) {
 		auto rx = this->hexToInt(data[5], data[6], data[7]) / 32768.0 + this->rotate[0];
 		auto ry = this->hexToInt(data[2], data[3], data[4]) / 32768.0 + this->rotate[1];
 		auto rz = this->hexToInt(data[8], data[9], data[10]) / 32768.0 + this->rotate[2];
+
+		this->chanValues[3] = rx;
+		this->chanValues[4] = ry;
+		this->chanValues[5] = rz;
+	}
+
+	void readTransformation(unsigned char data[29]) {
+		auto x = this->hexToInt(data[11], data[12], data[13]) / 64.0 + this->transform[0];
+		auto y = this->hexToInt(data[14], data[15], data[16]) / 64.0 + this->transform[1];
+		auto z = this->hexToInt(data[17], data[18], data[19]) / 64.0 + this->transform[2];
+
+		this->chanValues[0] = x;
+		this->chanValues[1] = y;
+		this->chanValues[2] = z;
+	}
+
+	void readLenzData(unsigned char data[29]) {
 		auto lz = (double)this->hexToInt(data[20], data[21], data[22]) - (double)0x80000;
 		auto lf = (double)this->hexToInt(data[23], data[24], data[25]) - (double)0x80000;
 
@@ -150,14 +186,32 @@ public:
 		if (this->focus_max > 0.0 && this->focus_min > 0.0 && this->focus_max > this->focus_min)
 			focus = (this->focus_max - lf) / (this->focus_max - this->focus_min);
 
-		this->chanValues[0] = x;
-		this->chanValues[1] = y;
-		this->chanValues[2] = z;
-		this->chanValues[3] = rx;
-		this->chanValues[4] = ry;
-		this->chanValues[5] = rz;
 		this->chanValues[6] = zoom;
 		this->chanValues[7] = focus;
+	}
+
+	void measureFps() {
+		this->now = time(NULL);
+		struct tm* pnow = localtime(&now);
+		int sec = pnow->tm_sec;
+		if (sec != this->last_sec) {
+			this->last_sec = sec;
+			this->chanValues[8] = (double)this->fps_counter;
+
+			if (this->fpsHistory.size() > 10) {
+				this->fpsHistory.erase(this->fpsHistory.begin());
+			}
+			this->fpsHistory.push_back((double)this->fps_counter);
+
+			if (this->fpsHistory.size() > 0) {
+				double sumHistory = std::accumulate(this->fpsHistory.begin(), this->fpsHistory.end(), 0);
+				auto avgHistory = sumHistory / this->fpsHistory.size();
+				this->chanValues[9] = avgHistory;
+			}
+
+			this->fps_counter = 0;
+		}
+		this->fps_counter++;
 	}
 
 	int hexToInt(unsigned char d1, unsigned char d2, unsigned char d3)
@@ -280,6 +334,7 @@ public:
 			this->focus_min = 0;
 		}
 	}
+
 };
 
 extern "C"
