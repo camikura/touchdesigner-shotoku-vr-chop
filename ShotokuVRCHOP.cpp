@@ -116,30 +116,53 @@ public:
 			for (auto c : v) {
 				c &= 0xff;
 
-				if (c == 0xd1 && pos == 29) {
+				if (pos <= 0 && c == 0xd1) {
+					data[0] = c;
 					unsigned char data[29] = { 0 };
-					pos = 0;
+					pos = 1;
+					continue;
 				}
 
-				if (pos < 29) {
+				if (pos > 0 && pos < 29) {
 					data[pos++] = c;
 				}
 
-				if (data[0] == 0xd1 && pos == 28) {
-					this->read(data);
+				if (pos == 29) {
+					if (isValidData(data)) {
+						this->handleData(data);
+						unsigned char data[29] = { 0 };
+						pos = 0;
+					}
+					else {
+						std::cout << "Invalid data" << std::endl;
+						pos = -1;
+					}
 				}
-
 			}
-
-			if (pos > 28) {
-				unsigned char data[29] = { 0 };
-				pos = 0;
-			}
-
 		}
 	}
 
-	void read(unsigned char data[29])
+	bool isValidData(unsigned char data[29])
+	{
+		if (data[1] != 1) {
+			return false;
+		}
+		if (!this->checkSum(data)) {
+			return false;
+		}
+		return true;
+	}
+
+	bool checkSum(unsigned char data[29])
+	{
+		int s = 0;
+		for (int i  = 0; i < 28; i++) {
+			s += int(data[i]);
+		}
+		return data[28] == (unsigned char)(0x40 - (s & 0xff));
+	}
+
+	void handleData(unsigned char data[29])
 	{
 		this->measureFps();
 		this->readTransformation(data);
