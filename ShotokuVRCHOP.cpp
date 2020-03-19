@@ -46,7 +46,7 @@ public:
 
 	int last_sec = 0;
 	int fps_counter = 0;
-	time_t now;
+	time_t now = NULL;
 
 	std::vector<double> fpsHistory{};
 
@@ -370,6 +370,10 @@ extern "C"
 	DLLEXPORT void FillCHOPPluginInfo(CHOP_PluginInfo* info)
 	{
 		info->apiVersion = CHOPCPlusPlusAPIVersion;
+		info->customOPInfo.opType->setString("Shotokuvr");
+		info->customOPInfo.opLabel->setString("Shotoku VR");
+		info->customOPInfo.authorName->setString("Akira Kamikura");
+		info->customOPInfo.authorEmail->setString("akira.kamikura@gmail.com");
 	}
 
 	DLLEXPORT CHOP_CPlusPlusBase* CreateCHOPInstance(const OP_NodeInfo* info)
