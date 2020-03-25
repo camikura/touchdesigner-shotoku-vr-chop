@@ -181,9 +181,9 @@ public:
 	}
 
 	void readTransformation(unsigned char data[29]) {
-		auto x = this->hexToInt(data[11], data[12], data[13]) / 64.0 + this->transform[0];
-		auto y = this->hexToInt(data[14], data[15], data[16]) / 64.0 + this->transform[1];
-		auto z = this->hexToInt(data[17], data[18], data[19]) / 64.0 + this->transform[2];
+		auto x = this->hexToInt(data[11], data[12], data[13]) / 64.0 * 0.001 + this->transform[0];
+		auto y = this->hexToInt(data[17], data[18], data[19]) / 64.0 * 0.001 + this->transform[1];
+		auto z = this->hexToInt(data[14], data[15], data[16]) / 64.0 * 0.001 + this->transform[2];
 
 		this->chanValues[0] = x;
 		this->chanValues[1] = y;
