@@ -32,6 +32,7 @@ class ShotokuVRCHOP : public CHOP_CPlusPlusBase
 {
 public:
 	std::string portname = "";
+	int cameraid = 0;
 
 	std::vector<std::string> chanNames{ "tx", "ty", "tz", "rx", "ry", "rz", "zoom", "focus", "fps", "fpsavg" };
 	std::vector<double> chanValues{ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
@@ -134,7 +135,6 @@ public:
 						pos = 0;
 					}
 					else {
-						std::cout << "Invalid data" << std::endl;
 						pos = -1;
 					}
 				}
@@ -144,10 +144,12 @@ public:
 
 	bool isValidData(unsigned char data[29])
 	{
-		if (data[1] != 1) {
+		if (data[1] != this->cameraid) {
+			std::cout << "Camera id Error: is the Camera ID really " << this->cameraid << "?" << std::endl;
 			return false;
 		}
 		if (!this->checkSum(data)) {
+			std::cout << "Check Sum Error" << std::endl;
 			return false;
 		}
 		return true;
@@ -290,6 +292,8 @@ public:
 		std::string name = inputs->getParString("Portname");
 		std::transform(name.cbegin(), name.cend(), name.begin(), toupper);
 
+		this->cameraid = inputs->getParInt("Cameraid");
+
 		if (this->portname != name) {
 			this->stop();
 			this->close();
@@ -319,6 +323,16 @@ public:
 			sp.name = "Portname";
 			sp.label = "Port Name";
 			OP_ParAppendResult res = manager->appendString(sp);
+			assert(res == OP_ParAppendResult::Success);
+		}
+		{
+			OP_NumericParameter np;
+			np.name = "Cameraid";
+			np.label = "Camera ID";
+			np.defaultValues[0] = 1.0;
+			np.minSliders[0] = 1.0;
+			np.maxSliders[0] = 100.0;
+			OP_ParAppendResult res = manager->appendInt(np);
 			assert(res == OP_ParAppendResult::Success);
 		}
 		{
