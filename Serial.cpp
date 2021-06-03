@@ -8,19 +8,12 @@
 #define PORTS "Ports"
 #define PORTNAME "PortName"
 
-const Serial::SerialConfig defconf = {
-	CBR_38400,
-	8,
-	PARITY_NONE,
-	STOPBITS_10,
-};
-
 void Serial::setBufferSize(unsigned long read, unsigned long write){
 	SetupComm(handle, read, write);
 }
 
 Serial::Serial() {
-	serialConfig = Serial::SerialConfig{ CBR_38400, 8, PARITY_NONE, ONESTOPBIT };
+	serialConfig = Serial::SerialConfig{ CBR_38400, 8, ODDPARITY, ONESTOPBIT };
 	opened = false;
 	handle = nullptr;
 }
@@ -69,7 +62,7 @@ void Serial::setConfig(const SerialConfig& config){
 	dcb.BaudRate = config.BaudRate;
 	dcb.ByteSize = (BYTE)config.ByteSize;
 	dcb.Parity = config.Parity;
-	dcb.fParity = (config.Parity != PARITY_NONE);
+	dcb.fParity = (config.Parity != NOPARITY);
 	dcb.StopBits = config.StopBits;
 	SetCommState(handle, &dcb);
 }
