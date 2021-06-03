@@ -9,7 +9,7 @@
 #define PORTNAME "PortName"
 
 const Serial::SerialConfig defconf = {
-	9600,
+	CBR_38400,
 	8,
 	PARITY_NONE,
 	STOPBITS_10,
@@ -20,7 +20,7 @@ void Serial::setBufferSize(unsigned long read, unsigned long write){
 }
 
 Serial::Serial() {
-	serialConfig = Serial::SerialConfig{ CBR_9600, 8, PARITY_NONE, ONESTOPBIT };
+	serialConfig = Serial::SerialConfig{ CBR_38400, 8, PARITY_NONE, ONESTOPBIT };
 	opened = false;
 	handle = nullptr;
 }
